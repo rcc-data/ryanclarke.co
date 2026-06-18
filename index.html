@@ -17,6 +17,8 @@
   --faint:rgba(245,242,238,0.09);
   --orange:#d97a3c;
   --orange-dim:rgba(217,122,60,0.32);
+  --green:#7ab87e;
+  --green-dim:rgba(122,184,126,0.32);
   --serif:'Instrument Serif',Georgia,serif;
 }
 
@@ -128,7 +130,15 @@ body::before{
   margin-bottom:clamp(18px,3vh,28px);
   opacity:0;animation:fadeUp .8s cubic-bezier(.22,1,.36,1) .5s forwards;
 }
-.status-dot{width:5px;height:5px;border-radius:50%;background:var(--orange);animation:pulse 3s ease-in-out infinite}
+.status-dot{width:5px;height:5px;border-radius:50%;background:var(--orange);animation:pulse 3s ease-in-out infinite;transition:background .65s cubic-bezier(.22,1,.36,1)}
+.status.available .status-dot{background:var(--green)}
+.status-label{transition:color .65s cubic-bezier(.22,1,.36,1)}
+.status.available .status-label{color:var(--green)}
+.status-value{
+  display:inline-block;white-space:nowrap;
+  transition:opacity .55s cubic-bezier(.22,1,.36,1),width .6s cubic-bezier(.22,1,.36,1);
+}
+.status-value.fading{opacity:0}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
 .status-txt{font-size:clamp(12px,1.3vw,14px);font-weight:300;color:var(--muted)}
 .status-txt strong{font-weight:400;color:var(--text)}
@@ -679,7 +689,7 @@ body::before{
     </h1>
     <div class="status">
       <div class="status-dot"></div>
-      <p class="status-txt"><strong><span class="status-label">current status:</span> capacity full.</strong>&nbsp; message to chat.</p>
+      <p class="status-txt"><strong><span class="status-label">current status:</span> <span class="status-value">capacity full.</span></strong>&nbsp; message to chat.</p>
     </div>
     <button class="dm-btn" id="openMsg" aria-label="send a message" data-tip="send a message">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -1323,6 +1333,39 @@ const stageSecret=document.getElementById('stageSecret');
 const stageSent=document.getElementById('stageSent');
 const msgInput=document.getElementById('msgInput');
 
+/* status: swap after one pulse (~3s). Measure the target width
+   by cloning the exact same element (so it inherits identically),
+   animate to it, then clear the explicit width once settled so the
+   element returns to natural-flow sizing. */
+setTimeout(()=>{
+  const statusEl=document.querySelector('.status');
+  const valueEl=document.querySelector('.status-value');
+  if(!statusEl||!valueEl) return;
+  /* clone the value element itself — exact same class chain & inheritance */
+  const probe=valueEl.cloneNode(false);
+  probe.textContent='one space available.';
+  probe.style.cssText='visibility:hidden;position:absolute;left:-9999px;white-space:nowrap;width:auto;transition:none;';
+  valueEl.parentNode.appendChild(probe);
+  const targetWidth=probe.getBoundingClientRect().width;
+  const currentWidth=valueEl.getBoundingClientRect().width;
+  probe.remove();
+  /* lock current width so the transition has somewhere to animate from */
+  valueEl.style.width=currentWidth+'px';
+  /* next frame: trigger all three transitions together */
+  requestAnimationFrame(()=>{requestAnimationFrame(()=>{
+    statusEl.classList.add('available');
+    valueEl.classList.add('fading');
+    valueEl.style.width=targetWidth+'px';
+  });});
+  /* mid-fade, swap text content invisibly */
+  setTimeout(()=>{valueEl.textContent='one space available.';},340);
+  /* fade back in */
+  setTimeout(()=>{valueEl.classList.remove('fading');},380);
+  /* once the transition has fully settled, release the explicit width
+     so the element flows naturally on resize */
+  setTimeout(()=>{valueEl.style.width='';},1100);
+},3000);
+
 function showStage(stage){
   [stageNice,stageForm,stageSecret,stageSent].forEach(s=>s.classList.remove('active'));
   stage.classList.add('active');
@@ -1853,7 +1896,7 @@ addEventListener('resize',()=>{
 const idleOverlay = document.getElementById('idleOverlay');
 let idleTimer = null;
 let idleShown = false;
-const IDLE_MS = 30000;
+const IDLE_MS = 60000;
 function idleSafeNow(){
   if(mode) return false;
   if(msgOverlay.classList.contains('open')) return false;
